@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from models import SurveySubmission, StoredSurveyRecord
 from storage import append_json_line
 
+
 app = Flask(__name__)
 # Allow cross-origin requests so the static HTML can POST from localhost or file://
 CORS(app, resources={r"/v1/*": {"origins": "*"}})
@@ -24,13 +25,18 @@ def submit_survey():
     if payload is None:
         return jsonify({"error": "invalid_json", "detail": "Body must be application/json"}), 400
 
+    if "user_agent" not in payload:
+        payload["user_agent"] = request.headers.get("User-Agent", "unknown")
     try:
         submission = SurveySubmission(**payload)
     except ValidationError as ve:
         return jsonify({"error": "validation_error", "detail": ve.errors()}), 422
 
+
     record = StoredSurveyRecord(
-        **submission.dict(),
+        **submission.dict(exclude={"email","age"}),
+        email=submission.email,
+        age=submission.age,
         received_at=datetime.now(timezone.utc),
         ip=request.headers.get("X-Forwarded-For", request.remote_addr or "")
     )
@@ -39,3 +45,5 @@ def submit_survey():
 
 if __name__ == "__main__":
     app.run(port=0, debug=True)
+
+
